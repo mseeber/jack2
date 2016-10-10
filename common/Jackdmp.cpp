@@ -340,17 +340,21 @@ int main(int argc, char** argv)
         #endif
 
             case 'a':
+            {
+                //no tolower here, since this is case sensitive, see usage
+                char self_connect_choice = optarg[0];
+
                 param = jackctl_get_parameter(server_parameters, "self-connect-mode");
                 if (param != NULL) {
                     bool value_valid = false;
                     for (uint32_t k=0; k<jackctl_parameter_get_enum_constraints_count( param ); k++ ) {
                         value = jackctl_parameter_get_enum_constraint_value( param, k );
-                        if( value.c == optarg[0] )
+                        if( value.c == self_connect_choice )
                             value_valid = true;
                     }
 
                     if( value_valid ) {
-                        value.c = optarg[0];
+                        value.c = self_connect_choice;
                         jackctl_parameter_set_value(param, &value);
                     } else {
                         usage(stdout, server_ctl);
@@ -358,6 +362,7 @@ int main(int argc, char** argv)
                     }
                 }
                 break;
+            }
 
             case 'd':
                 master_driver_name = optarg;
@@ -472,6 +477,15 @@ int main(int argc, char** argv)
         }
     }
 
+    //This is intended to happen first after option parsing
+    if (show_version) {
+        printf( "jackdmp version " VERSION
+                " tmpdir " jack_server_dir
+                " protocol %d"
+                "\n", JACK_PROTOCOL_VERSION);
+        return -1;
+    }
+
 #ifdef __linux__
     {   //handle clock source selection
         param = jackctl_get_parameter(server_parameters, "clock-source");
@@ -496,14 +510,6 @@ int main(int argc, char** argv)
         }
     }
 #endif
-    //This is intended to happen first after option parsing
-    if (show_version) {
-        printf( "jackdmp version " VERSION
-                " tmpdir " jack_server_dir
-                " protocol %d"
-                "\n", JACK_PROTOCOL_VERSION);
-        return -1;
-    }
 
     // Long option with no letter so treated separately
     param = jackctl_get_parameter(server_parameters, "replace-registry");
