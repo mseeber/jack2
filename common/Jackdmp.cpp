@@ -324,6 +324,8 @@ int main(int argc, char** argv)
     opterr = 0; //TODO(mseeber) is this from optparse?
     union jackctl_parameter_value value;
 
+    char clock_source_choice = tolower(optarg[0]);
+
     while (!master_driver_name &&
             (opt = getopt_long(argc, argv, options,
                                long_options, &option_index)) != EOF) {
@@ -331,31 +333,10 @@ int main(int argc, char** argv)
 
         #ifdef __linux__
             case 'c':
-            {   //TODO(mseeber) cut ou whole block and only set the
-                //clock_source_choice for later usage
-                char clock_source_choice = tolower(optarg[0]);
-                param = jackctl_get_parameter(server_parameters, "clock-source");
-                if (param != NULL) {
-                    if (clock_source_choice == 'h') {
-                        value.ui = JACK_TIMER_HPET;
-                        jackctl_parameter_set_value(param, &value);
-                    } else if (clock_source_choice == 'c') {
-                        /* For backwards compatibility with scripts, allow
-                         * the user to request the cycle clock on the
-                         * command line, but use the system clock instead
-                         */
-                        value.ui = JACK_TIMER_SYSTEM_CLOCK;
-                        jackctl_parameter_set_value(param, &value);
-                    } else if (clock_source_choice == 's') {
-                        value.ui = JACK_TIMER_SYSTEM_CLOCK;
-                        jackctl_parameter_set_value(param, &value);
-                    } else {
-                        usage(stdout, server_ctl);
-                        goto destroy_server;
-                    }
-                }
+                //TODO(mseeber) maybe be more defensive about setting
+                //this multiple times
+                clock_source_choice = tolower(optarg[0]);
                 break;
-            }
         #endif
 
             case 'a':
@@ -491,19 +472,44 @@ int main(int argc, char** argv)
         }
     }
 
-    // Long option with no letter so treated separately
-    param = jackctl_get_parameter(server_parameters, "replace-registry");
-    if (param != NULL) {
-        value.b = replace_registry;
-        jackctl_parameter_set_value(param, &value);
+#ifdef __linux__
+    {   //handle clock source selection
+        param = jackctl_get_parameter(server_parameters, "clock-source");
+        if (param != NULL) {
+            if (clock_source_choice == 'h') {
+                value.ui = JACK_TIMER_HPET;
+                jackctl_parameter_set_value(param, &value);
+            } else if (clock_source_choice == 'c') {
+                /* For backwards compatibility with scripts, allow
+                 * the user to request the cycle clock on the
+                 * command line, but use the system clock instead
+                 */
+                value.ui = JACK_TIMER_SYSTEM_CLOCK;
+                jackctl_parameter_set_value(param, &value);
+            } else if (clock_source_choice == 's') {
+                value.ui = JACK_TIMER_SYSTEM_CLOCK;
+                jackctl_parameter_set_value(param, &value);
+            } else {
+                usage(stdout, server_ctl);
+                goto destroy_server;
+            }
+        }
     }
-
+#endif
+    //This is intended to happen first after option parsing
     if (show_version) {
         printf( "jackdmp version " VERSION
                 " tmpdir " jack_server_dir
                 " protocol %d"
                 "\n", JACK_PROTOCOL_VERSION);
         return -1;
+    }
+
+    // Long option with no letter so treated separately
+    param = jackctl_get_parameter(server_parameters, "replace-registry");
+    if (param != NULL) {
+        value.b = replace_registry;
+        jackctl_parameter_set_value(param, &value);
     }
 
     if (!master_driver_name) {
