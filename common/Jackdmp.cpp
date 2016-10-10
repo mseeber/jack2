@@ -243,8 +243,6 @@ extern "C" void silent_jack_error_callback(const char *desc);
 
 int main(int argc, char** argv)
 {
-    jackctl_server_t * server_ctl;
-    const JSList * server_parameters;
     const char* server_name = JACK_DEFAULT_SERVER_NAME;
     jackctl_driver_t * master_driver_ctl;
     jackctl_driver_t * loopback_driver_ctl = NULL;
@@ -292,8 +290,6 @@ int main(int argc, char** argv)
     int loopback = 0;
     bool show_version = false;
     jackctl_sigmask_t * sigmask;
-    jackctl_parameter_t* param;
-    union jackctl_parameter_value value;
 
     std::list<char*> internals_list;
     std::list<char*> slaves_list;
@@ -304,6 +300,10 @@ int main(int argc, char** argv)
     bool notify_sent = false;
 
     copyright(stdout);
+
+
+    jackctl_server_t * server_ctl;
+
 #if defined(JACK_DBUS) && defined(__linux__)
     if (getenv("JACK_NO_AUDIO_RESERVATION"))
         server_ctl = jackctl_server_create(NULL, NULL);
@@ -317,9 +317,13 @@ int main(int argc, char** argv)
         return -1;
     }
 
+    const JSList * server_parameters;
     server_parameters = jackctl_server_get_parameters(server_ctl);
 
-    opterr = 0;
+    jackctl_parameter_t* param;
+    opterr = 0; //TODO(mseeber) is this from optparse?
+    union jackctl_parameter_value value;
+
     while (!master_driver_name &&
             (opt = getopt_long(argc, argv, options,
                                long_options, &option_index)) != EOF) {
@@ -327,19 +331,22 @@ int main(int argc, char** argv)
 
         #ifdef __linux__
             case 'c':
+            {   //TODO(mseeber) cut ou whole block and only set the
+                //clock_source_choice for later usage
+                char clock_source_choice = tolower(optarg[0]);
                 param = jackctl_get_parameter(server_parameters, "clock-source");
                 if (param != NULL) {
-                    if (tolower (optarg[0]) == 'h') {
+                    if (clock_source_choice == 'h') {
                         value.ui = JACK_TIMER_HPET;
                         jackctl_parameter_set_value(param, &value);
-                    } else if (tolower (optarg[0]) == 'c') {
+                    } else if (clock_source_choice == 'c') {
                         /* For backwards compatibility with scripts, allow
                          * the user to request the cycle clock on the
                          * command line, but use the system clock instead
                          */
                         value.ui = JACK_TIMER_SYSTEM_CLOCK;
                         jackctl_parameter_set_value(param, &value);
-                    } else if (tolower (optarg[0]) == 's') {
+                    } else if (clock_source_choice == 's') {
                         value.ui = JACK_TIMER_SYSTEM_CLOCK;
                         jackctl_parameter_set_value(param, &value);
                     } else {
@@ -348,6 +355,7 @@ int main(int argc, char** argv)
                     }
                 }
                 break;
+            }
         #endif
 
             case 'a':
